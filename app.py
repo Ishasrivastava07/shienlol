@@ -200,7 +200,12 @@ def find_csv():
 @st.cache_data
 def load_data(up=None):
     df=pd.read_csv(up) if up else pd.read_csv(find_csv())
-    df.columns=[c.strip() for c in df.columns];return df
+    df.columns=[c.strip() for c in df.columns]
+    for col in ["country","age_group","gender","style_category","acquisition_channel",
+                "cohort_month","loyalty_tier","warehouse_hub","campaign_last_sent","uplift_segment"]:
+        if col in df.columns:
+            df[col]=df[col].fillna("Unknown").astype(str)
+    return df
 
 PS1_FEATURES=['recency_days','frequency_30d','frequency_90d','monetary_3m_usd',
               'avg_order_value_usd','browsing_sessions_30d','wishlist_items',
@@ -273,10 +278,10 @@ ps3_fc,ps3_met,ps3_fit,ps3_best,ps3_bm=ps3
 
 # ── SIDEBAR FILTERS ───────────────────────────────────────────────────────────
 st.sidebar.markdown("### Filters")
-country_sel=st.sidebar.multiselect("Country",sorted(df["country"].unique()),default=sorted(df["country"].unique()))
-age_sel=st.sidebar.multiselect("Age Group",sorted(df["age_group"].unique()),default=sorted(df["age_group"].unique()))
-channel_sel=st.sidebar.multiselect("Acquisition Channel",sorted(df["acquisition_channel"].unique()),default=sorted(df["acquisition_channel"].unique()))
-tier_sel=st.sidebar.multiselect("Loyalty Tier",sorted(df["loyalty_tier"].unique()),default=sorted(df["loyalty_tier"].unique()))
+country_sel=st.sidebar.multiselect("Country",sorted(df["country"].dropna().astype(str).unique()),default=sorted(df["country"].dropna().astype(str).unique()))
+age_sel=st.sidebar.multiselect("Age Group",sorted(df["age_group"].dropna().astype(str).unique()),default=sorted(df["age_group"].dropna().astype(str).unique()))
+channel_sel=st.sidebar.multiselect("Acquisition Channel",sorted(df["acquisition_channel"].dropna().astype(str).unique()),default=sorted(df["acquisition_channel"].dropna().astype(str).unique()))
+tier_sel=st.sidebar.multiselect("Loyalty Tier",sorted(df["loyalty_tier"].dropna().astype(str).unique()),default=sorted(df["loyalty_tier"].dropna().astype(str).unique()))
 churn_filter=st.sidebar.multiselect("Churn Status",["Churned","Retained"],default=["Churned","Retained"])
 churn_vals=[{"Churned":1,"Retained":0}[c] for c in churn_filter]
 
@@ -336,7 +341,7 @@ with tab_desc:
             st.dataframe(cdf.reset_index().rename(columns={"index":"Country"}),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Churn Rate by Country</div>",unsafe_allow_html=True)
-            crc=view.groupby("country")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %").sort_values("Churn Rate %",ascending=False)
+            crc=view.dropna(subset=["country"]).groupby("country")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %").sort_values("Churn Rate %",ascending=False)
             st.bar_chart(crc)
             st.dataframe(crc.reset_index(),use_container_width=True,hide_index=True)
         a,b,c=st.columns(3,gap="large")
@@ -350,10 +355,10 @@ with tab_desc:
             st.bar_chart(ach);st.dataframe(ach.reset_index().rename(columns={"index":"Channel"}),use_container_width=True,hide_index=True)
         with c:
             st.markdown("<div class='section-title'>Age Group Split</div>",unsafe_allow_html=True)
-            ag=view["age_group"].value_counts().sort_index().to_frame("Customers")
+            ag=view["age_group"].value_counts().to_frame("Customers")
             st.bar_chart(ag);st.dataframe(ag.reset_index().rename(columns={"index":"Age Group"}),use_container_width=True,hide_index=True)
         st.markdown("<div class='section-title'>Cohort Acquisition & Churn Over Time</div>",unsafe_allow_html=True)
-        coh=view.groupby("cohort_month").agg(Customers=("customer_id","count"),Churned=(TARGET,"sum")).reset_index()
+        coh=view.dropna(subset=["cohort_month"]).groupby("cohort_month").agg(Customers=("customer_id","count"),Churned=(TARGET,"sum")).reset_index()
         coh["Churn Rate %"]=(coh["Churned"]/coh["Customers"]*100).round(1)
         st.line_chart(coh.set_index("cohort_month")[["Customers","Churned"]])
         st.dataframe(coh,use_container_width=True,hide_index=True)
@@ -367,23 +372,23 @@ with tab_desc:
             st.bar_chart(wh);st.dataframe(wh.reset_index().rename(columns={"index":"Hub"}),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Avg Delivery Days by Country</div>",unsafe_allow_html=True)
-            del_c=view.groupby("country")["avg_delivery_days"].mean().round(2).to_frame("Avg Delivery Days").sort_values("Avg Delivery Days",ascending=False)
+            del_c=view.dropna(subset=["country"]).groupby("country")["avg_delivery_days"].mean().round(2).to_frame("Avg Delivery Days").sort_values("Avg Delivery Days",ascending=False)
             st.bar_chart(del_c);st.dataframe(del_c.reset_index(),use_container_width=True,hide_index=True)
         a,b,c=st.columns(3,gap="large")
         with a:
             st.markdown("<div class='section-title'>Avg Basket Size by Country</div>",unsafe_allow_html=True)
-            bs=view.groupby("country")["basket_size_items"].mean().round(2).to_frame("Avg Basket Items").sort_values("Avg Basket Items",ascending=False)
+            bs=view.dropna(subset=["country"]).groupby("country")["basket_size_items"].mean().round(2).to_frame("Avg Basket Items").sort_values("Avg Basket Items",ascending=False)
             st.bar_chart(bs);st.dataframe(bs.reset_index(),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Returns Rate by Country</div>",unsafe_allow_html=True)
-            rr=view.groupby("country")["returns_rate"].mean().mul(100).round(2).to_frame("Avg Returns Rate %").sort_values("Avg Returns Rate %",ascending=False)
+            rr=view.dropna(subset=["country"]).groupby("country")["returns_rate"].mean().mul(100).round(2).to_frame("Avg Returns Rate %").sort_values("Avg Returns Rate %",ascending=False)
             st.bar_chart(rr);st.dataframe(rr.reset_index(),use_container_width=True,hide_index=True)
         with c:
             st.markdown("<div class='section-title'>Delivery Issues Count by Hub</div>",unsafe_allow_html=True)
-            di=view.groupby("warehouse_hub")["delivery_issues_count"].mean().round(2).to_frame("Avg Delivery Issues")
+            di=view.dropna(subset=["warehouse_hub"]).groupby("warehouse_hub")["delivery_issues_count"].mean().round(2).to_frame("Avg Delivery Issues")
             st.bar_chart(di);st.dataframe(di.reset_index(),use_container_width=True,hide_index=True)
         st.markdown("<div class='section-title'>Full Logistics Cost Breakdown by Country</div>",unsafe_allow_html=True)
-        lc=view.groupby("country").agg(Avg_Last_Mile=("last_mile_cost_usd","mean"),Avg_Fulfillment=("fulfillment_cost_usd","mean"),Avg_Return_Cost=("return_cost_usd","mean"),Avg_Logistics_Pct=("logistics_cost_pct_revenue","mean")).mul({"Avg_Last_Mile":1,"Avg_Fulfillment":1,"Avg_Return_Cost":1,"Avg_Logistics_Pct":100}).round(2)
+        lc=view.dropna(subset=["country"]).groupby("country").agg(Avg_Last_Mile=("last_mile_cost_usd","mean"),Avg_Fulfillment=("fulfillment_cost_usd","mean"),Avg_Return_Cost=("return_cost_usd","mean"),Avg_Logistics_Pct=("logistics_cost_pct_revenue","mean")).mul({"Avg_Last_Mile":1,"Avg_Fulfillment":1,"Avg_Return_Cost":1,"Avg_Logistics_Pct":100}).round(2)
         st.dataframe(lc.reset_index(),use_container_width=True,hide_index=True)
 
     with d3:
@@ -391,16 +396,16 @@ with tab_desc:
         a,b=st.columns(2,gap="large")
         with a:
             st.markdown("<div class='section-title'>Avg Discount Dependency by Channel</div>",unsafe_allow_html=True)
-            dd=view.groupby("acquisition_channel")["discount_dependency_pct"].mean().mul(100).round(1).to_frame("Disc Dep %").sort_values("Disc Dep %",ascending=False)
+            dd=view.dropna(subset=["acquisition_channel"]).groupby("acquisition_channel")["discount_dependency_pct"].mean().mul(100).round(1).to_frame("Disc Dep %").sort_values("Disc Dep %",ascending=False)
             st.bar_chart(dd);st.dataframe(dd.reset_index(),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Mega-Sale Participation by Country</div>",unsafe_allow_html=True)
-            ms=view.groupby("country")["mega_sale_participant"].mean().mul(100).round(1).to_frame("Mega-Sale Participation %").sort_values("Mega-Sale Participation %",ascending=False)
+            ms=view.dropna(subset=["country"]).groupby("country")["mega_sale_participant"].mean().mul(100).round(1).to_frame("Mega-Sale Participation %").sort_values("Mega-Sale Participation %",ascending=False)
             st.bar_chart(ms);st.dataframe(ms.reset_index(),use_container_width=True,hide_index=True)
         a,b,c=st.columns(3,gap="large")
         with a:
             st.markdown("<div class='section-title'>Avg Promo Depth by Country</div>",unsafe_allow_html=True)
-            pd_c=view.groupby("country")["promo_depth_pct"].mean().mul(100).round(1).to_frame("Avg Promo Depth %").sort_values("Avg Promo Depth %",ascending=False)
+            pd_c=view.dropna(subset=["country"]).groupby("country")["promo_depth_pct"].mean().mul(100).round(1).to_frame("Avg Promo Depth %").sort_values("Avg Promo Depth %",ascending=False)
             st.bar_chart(pd_c);st.dataframe(pd_c.reset_index(),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Campaign Type Mix</div>",unsafe_allow_html=True)
@@ -411,7 +416,7 @@ with tab_desc:
             us=view["uplift_segment"].value_counts().to_frame("Customers")
             st.bar_chart(us);st.dataframe(us.reset_index().rename(columns={"index":"Segment"}),use_container_width=True,hide_index=True)
         st.markdown("<div class='section-title'>Avg 12M CLV by Acquisition Channel</div>",unsafe_allow_html=True)
-        clv_ch=view.groupby("acquisition_channel")["clv_12m_usd"].mean().round(2).to_frame("Avg 12M CLV ($)").sort_values("Avg 12M CLV ($)",ascending=False)
+        clv_ch=view.dropna(subset=["acquisition_channel"]).groupby("acquisition_channel")["clv_12m_usd"].mean().round(2).to_frame("Avg 12M CLV ($)").sort_values("Avg 12M CLV ($)",ascending=False)
         st.bar_chart(clv_ch);st.dataframe(clv_ch.reset_index(),use_container_width=True,hide_index=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -435,23 +440,23 @@ with tab_diag:
             st.dataframe(cr_df,use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Churn Rate by Loyalty Tier</div>",unsafe_allow_html=True)
-            ct=view.groupby("loyalty_tier")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %").sort_values("Churn Rate %",ascending=False)
+            ct=view.dropna(subset=["loyalty_tier"]).groupby("loyalty_tier")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %").sort_values("Churn Rate %",ascending=False)
             st.bar_chart(ct);st.dataframe(ct.reset_index(),use_container_width=True,hide_index=True)
         a,b,c=st.columns(3,gap="large")
         with a:
             st.markdown("<div class='section-title'>Churn Rate by Age Group</div>",unsafe_allow_html=True)
-            ca=view.groupby("age_group")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %")
+            ca=view.dropna(subset=["age_group"]).groupby("age_group")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %")
             st.bar_chart(ca);st.dataframe(ca.reset_index(),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Churn Rate by Acquisition Channel</div>",unsafe_allow_html=True)
-            cc=view.groupby("acquisition_channel")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %").sort_values("Churn Rate %",ascending=False)
+            cc=view.dropna(subset=["acquisition_channel"]).groupby("acquisition_channel")[TARGET].mean().mul(100).round(1).to_frame("Churn Rate %").sort_values("Churn Rate %",ascending=False)
             st.bar_chart(cc);st.dataframe(cc.reset_index(),use_container_width=True,hide_index=True)
         with c:
             st.markdown("<div class='section-title'>Returns Rate by Style Category</div>",unsafe_allow_html=True)
-            rsc=view.groupby("style_category")["returns_rate"].mean().mul(100).round(2).to_frame("Returns Rate %").sort_values("Returns Rate %",ascending=False)
+            rsc=view.dropna(subset=["style_category"]).groupby("style_category")["returns_rate"].mean().mul(100).round(2).to_frame("Returns Rate %").sort_values("Returns Rate %",ascending=False)
             st.bar_chart(rsc);st.dataframe(rsc.reset_index(),use_container_width=True,hide_index=True)
         st.markdown("<div class='section-title'>RFM Summary by Loyalty Tier</div>",unsafe_allow_html=True)
-        rfm=view.groupby("loyalty_tier").agg(Avg_Recency=("recency_days","mean"),Avg_Freq_90d=("frequency_90d","mean"),Avg_Monetary=("monetary_3m_usd","mean"),Avg_CLV=("clv_12m_usd","mean"),Churn_Rate=(TARGET,"mean")).round(2)
+        rfm=view.dropna(subset=["loyalty_tier"]).groupby("loyalty_tier").agg(Avg_Recency=("recency_days","mean"),Avg_Freq_90d=("frequency_90d","mean"),Avg_Monetary=("monetary_3m_usd","mean"),Avg_CLV=("clv_12m_usd","mean"),Churn_Rate=(TARGET,"mean")).round(2)
         rfm["Churn Rate %"]=(rfm["Churn_Rate"]*100).round(1)
         st.dataframe(rfm.drop(columns="Churn_Rate").reset_index(),use_container_width=True,hide_index=True)
         none_c=view[view["loyalty_tier"]=="None"][TARGET].mean()*100
@@ -463,26 +468,26 @@ with tab_diag:
         a,b=st.columns(2,gap="large")
         with a:
             st.markdown("<div class='section-title'>Gross Margin % by Country</div>",unsafe_allow_html=True)
-            gm=view.groupby("country")["gross_margin_pct"].mean().mul(100).round(2).to_frame("Gross Margin %").sort_values("Gross Margin %",ascending=False)
+            gm=view.dropna(subset=["country"]).groupby("country")["gross_margin_pct"].mean().mul(100).round(2).to_frame("Gross Margin %").sort_values("Gross Margin %",ascending=False)
             st.bar_chart(gm);st.dataframe(gm.reset_index(),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>Logistics Cost % by Warehouse Hub</div>",unsafe_allow_html=True)
-            lch=view.groupby("warehouse_hub")["logistics_cost_pct_revenue"].mean().mul(100).round(2).to_frame("Logistics Cost %").sort_values("Logistics Cost %",ascending=False)
+            lch=view.dropna(subset=["warehouse_hub"]).groupby("warehouse_hub")["logistics_cost_pct_revenue"].mean().mul(100).round(2).to_frame("Logistics Cost %").sort_values("Logistics Cost %",ascending=False)
             st.bar_chart(lch);st.dataframe(lch.reset_index(),use_container_width=True,hide_index=True)
         a,b=st.columns(2,gap="large")
         with a:
             st.markdown("<div class='section-title'>Last-Mile Cost vs Avg Order Value by Country</div>",unsafe_allow_html=True)
-            lmv=view.groupby("country").agg(Avg_AOV=("avg_order_value_usd","mean"),Avg_Last_Mile=("last_mile_cost_usd","mean")).round(2)
+            lmv=view.dropna(subset=["country"]).groupby("country").agg(Avg_AOV=("avg_order_value_usd","mean"),Avg_Last_Mile=("last_mile_cost_usd","mean")).round(2)
             lmv["Last Mile as % AOV"]=(lmv["Avg_Last_Mile"]/lmv["Avg_AOV"]*100).round(1)
             st.dataframe(lmv.reset_index(),use_container_width=True,hide_index=True)
             st.bar_chart(lmv[["Last Mile as % AOV"]])
         with b:
             st.markdown("<div class='section-title'>Delivery Issues vs Churn Rate by Country</div>",unsafe_allow_html=True)
-            di2=view.groupby("country").agg(Avg_Issues=("delivery_issues_count","mean"),Churn_Rate=(TARGET,"mean")).round(3)
+            di2=view.dropna(subset=["country"]).groupby("country").agg(Avg_Issues=("delivery_issues_count","mean"),Churn_Rate=(TARGET,"mean")).round(3)
             di2["Churn Rate %"]=(di2["Churn_Rate"]*100).round(1)
             st.dataframe(di2.drop(columns="Churn_Rate").reset_index(),use_container_width=True,hide_index=True)
         st.markdown("<div class='section-title'>Full Per-Order Cost Breakdown</div>",unsafe_allow_html=True)
-        cost=view.groupby("warehouse_hub").agg(Avg_Last_Mile=("last_mile_cost_usd","mean"),Avg_Fulfillment=("fulfillment_cost_usd","mean"),Avg_Return_Cost=("return_cost_usd","mean"),Avg_AOV=("avg_order_value_usd","mean")).round(2)
+        cost=view.dropna(subset=["warehouse_hub"]).groupby("warehouse_hub").agg(Avg_Last_Mile=("last_mile_cost_usd","mean"),Avg_Fulfillment=("fulfillment_cost_usd","mean"),Avg_Return_Cost=("return_cost_usd","mean"),Avg_AOV=("avg_order_value_usd","mean")).round(2)
         cost["Total Cost Est"]=cost["Avg_Last_Mile"]+cost["Avg_Fulfillment"]+cost["Avg_Return_Cost"]
         cost["Cost as % AOV"]=(cost["Total Cost Est"]/cost["Avg_AOV"]*100).round(1)
         st.dataframe(cost.reset_index(),use_container_width=True,hide_index=True)
@@ -495,23 +500,23 @@ with tab_diag:
         a,b=st.columns(2,gap="large")
         with a:
             st.markdown("<div class='section-title'>Discount Dependency vs CLV by Channel</div>",unsafe_allow_html=True)
-            dd2=view.groupby("acquisition_channel").agg(Avg_Disc_Dep=("discount_dependency_pct","mean"),Avg_CLV=("clv_12m_usd","mean"),Avg_Margin=("gross_margin_pct","mean")).mul({"Avg_Disc_Dep":100,"Avg_CLV":1,"Avg_Margin":100}).round(2)
+            dd2=view.dropna(subset=["acquisition_channel"]).groupby("acquisition_channel").agg(Avg_Disc_Dep=("discount_dependency_pct","mean"),Avg_CLV=("clv_12m_usd","mean"),Avg_Margin=("gross_margin_pct","mean")).mul({"Avg_Disc_Dep":100,"Avg_CLV":1,"Avg_Margin":100}).round(2)
             st.dataframe(dd2.reset_index(),use_container_width=True,hide_index=True)
             st.bar_chart(dd2[["Avg_Disc_Dep","Avg_Margin"]])
         with b:
             st.markdown("<div class='section-title'>Campaign ROI by Campaign Type</div>",unsafe_allow_html=True)
-            camp2=view[view["campaign_last_sent"]!="None"].groupby("campaign_last_sent").agg(Avg_ROI=("campaign_roi","mean"),Response_Rate=("responded_to_campaign","mean"),Avg_Incremental=("incremental_orders_from_campaign","mean")).round(3)
+            camp2=view[view["campaign_last_sent"].notna() & (view["campaign_last_sent"]!="None")].groupby("campaign_last_sent").agg(Avg_ROI=("campaign_roi","mean"),Response_Rate=("responded_to_campaign","mean"),Avg_Incremental=("incremental_orders_from_campaign","mean")).round(3)
             camp2["Response %"]=(camp2["Response_Rate"]*100).round(1)
             st.bar_chart(camp2[["Avg_ROI"]])
             st.dataframe(camp2.drop(columns="Response_Rate").reset_index(),use_container_width=True,hide_index=True)
         a,b=st.columns(2,gap="large")
         with a:
             st.markdown("<div class='section-title'>Gross Margin by Uplift Segment</div>",unsafe_allow_html=True)
-            gms=view.groupby("uplift_segment")["gross_margin_pct"].mean().mul(100).round(2).to_frame("Gross Margin %").sort_values("Gross Margin %",ascending=False)
+            gms=view.dropna(subset=["uplift_segment"]).groupby("uplift_segment")["gross_margin_pct"].mean().mul(100).round(2).to_frame("Gross Margin %").sort_values("Gross Margin %",ascending=False)
             st.bar_chart(gms);st.dataframe(gms.reset_index(),use_container_width=True,hide_index=True)
         with b:
             st.markdown("<div class='section-title'>CLV by Uplift Segment</div>",unsafe_allow_html=True)
-            clvs=view.groupby("uplift_segment")["clv_12m_usd"].mean().round(2).to_frame("Avg 12M CLV ($)").sort_values("Avg 12M CLV ($)",ascending=False)
+            clvs=view.dropna(subset=["uplift_segment"]).groupby("uplift_segment")["clv_12m_usd"].mean().round(2).to_frame("Avg 12M CLV ($)").sort_values("Avg 12M CLV ($)",ascending=False)
             st.bar_chart(clvs);st.dataframe(clvs.reset_index(),use_container_width=True,hide_index=True)
         infl_dd=view[view["acquisition_channel"]=="Influencer"]["discount_dependency_pct"].mean()*100
         org_dd=view[view["acquisition_channel"]=="Organic"]["discount_dependency_pct"].mean()*100
@@ -547,8 +552,8 @@ with tab_pred:
             st.line_chart(ps1_fit[ps1_best]["roc"].set_index("FPR"))
             st.markdown("<div class='small-muted'>Upper-left = stronger discrimination.</div>",unsafe_allow_html=True)
         st.markdown("<div class='section-title'>Churn Risk Score Distribution</div>",unsafe_allow_html=True)
-        rb=pd.cut(view["churn_risk_score"],bins=[0,25,50,75,100],labels=["Low (0-25)","Medium (25-50)","High (50-75)","Critical (75-100)"],include_lowest=True)
-        rb_df=rb.value_counts().sort_index().to_frame("Customers")
+        rb=pd.cut(view["churn_risk_score"].fillna(0),bins=[0,25,50,75,100],labels=["Low (0-25)","Medium (25-50)","High (50-75)","Critical (75-100)"],include_lowest=True)
+        rb_df=rb.value_counts().to_frame("Customers")
         st.bar_chart(rb_df);st.dataframe(rb_df.reset_index().rename(columns={"index":"Risk Band"}),use_container_width=True,hide_index=True)
 
     with p2:
@@ -573,7 +578,7 @@ with tab_pred:
             st.markdown("<div class='section-title'>ROC Curve</div>",unsafe_allow_html=True)
             st.line_chart(ps2_fit[ps2_best]["roc"].set_index("FPR"))
         st.markdown("<div class='section-title'>High Logistics Risk Customers by Country</div>",unsafe_allow_html=True)
-        hl=view_scored.groupby("country")["High Logistics Risk"].mean().mul(100).round(1).to_frame("High Cost Risk %").sort_values("High Cost Risk %",ascending=False)
+        hl=view_scored.dropna(subset=["country"]).groupby("country")["High Logistics Risk"].mean().mul(100).round(1).to_frame("High Cost Risk %").sort_values("High Cost Risk %",ascending=False)
         st.bar_chart(hl);st.dataframe(hl.reset_index(),use_container_width=True,hide_index=True)
 
     with p3:
@@ -599,7 +604,7 @@ with tab_pred:
             st.line_chart(ps3_fit[ps3_best]["roc"].set_index("FPR"))
         st.markdown("<div class='section-title'>Predicted Campaign Conversion by Uplift Segment</div>",unsafe_allow_html=True)
         if "Campaign Convert Prob" in view_scored.columns:
-            cv=view_scored.groupby("uplift_segment")["Campaign Convert Prob"].mean().round(3).to_frame("Avg Convert Prob").sort_values("Avg Convert Prob",ascending=False)
+            cv=view_scored.dropna(subset=["uplift_segment"]).groupby("uplift_segment")["Campaign Convert Prob"].mean().round(3).to_frame("Avg Convert Prob").sort_values("Avg Convert Prob",ascending=False)
             st.bar_chart(cv);st.dataframe(cv.reset_index(),use_container_width=True,hide_index=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -654,7 +659,7 @@ with tab_presc:
     with r2:
         st.markdown("<div class='ps-header ps2-header'>How should logistics be optimised to protect margin across APAC hubs?</div>",unsafe_allow_html=True)
         st.markdown("<div class='section-title'>Hub Optimisation Recommendations</div>",unsafe_allow_html=True)
-        hub_df=view.groupby("warehouse_hub").agg(
+        hub_df=view.dropna(subset=["warehouse_hub"]).groupby("warehouse_hub").agg(
             Customers=("customer_id","count"),Avg_Logistics_Cost_Pct=("logistics_cost_pct_revenue","mean"),
             Avg_Delivery_Days=("avg_delivery_days","mean"),Avg_Return_Cost=("return_cost_usd","mean"),
             Avg_Gross_Margin=("gross_margin_pct","mean"),Delivery_Issues_Rate=("delivery_issues_count","mean")
@@ -671,7 +676,7 @@ with tab_presc:
         st.markdown("<div class='section-title'>Returns Reduction Priorities by Style Category</div>",unsafe_allow_html=True)
         a,b=st.columns(2,gap="large")
         with a:
-            rr2=view.groupby("style_category").agg(Avg_Returns=("returns_rate","mean"),Avg_Return_Cost=("return_cost_usd","mean"),Customers=("customer_id","count")).round(2)
+            rr2=view.dropna(subset=["style_category"]).groupby("style_category").agg(Avg_Returns=("returns_rate","mean"),Avg_Return_Cost=("return_cost_usd","mean"),Customers=("customer_id","count")).round(2)
             rr2["Avg Returns %"]=(rr2["Avg_Returns"]*100).round(1)
             st.dataframe(rr2.drop(columns="Avg_Returns").reset_index(),use_container_width=True,hide_index=True)
         with b:
@@ -682,7 +687,7 @@ with tab_presc:
         a,b=st.columns(2,gap="large")
         with a:
             st.markdown("<div class='section-title'>Campaign ROI Ranking</div>",unsafe_allow_html=True)
-            cr2=view[view["campaign_last_sent"]!="None"].groupby("campaign_last_sent").agg(
+            cr2=view[view["campaign_last_sent"].notna() & (view["campaign_last_sent"]!="None")].groupby("campaign_last_sent").agg(
                 Avg_ROI=("campaign_roi","mean"),Response_Rate=("responded_to_campaign","mean"),
                 Avg_CLV_Impact=("clv_12m_usd","mean"),Avg_Disc_Depth=("promo_depth_pct","mean")).round(3)
             cr2["Response %"]=(cr2["Response_Rate"]*100).round(1);cr2["Disc Depth %"]=(cr2["Avg_Disc_Depth"]*100).round(1)
@@ -691,7 +696,7 @@ with tab_presc:
         with b:
             st.markdown("<div class='section-title'>Predicted Converters by Country</div>",unsafe_allow_html=True)
             if "Campaign Convert Prob" in view_scored.columns:
-                pconv=view_scored.groupby("country")["Campaign Convert Prob"].mean().round(3).to_frame("Avg Convert Prob").sort_values("Avg Convert Prob",ascending=False)
+                pconv=view_scored.dropna(subset=["country"]).groupby("country")["Campaign Convert Prob"].mean().round(3).to_frame("Avg Convert Prob").sort_values("Avg Convert Prob",ascending=False)
                 st.bar_chart(pconv);st.dataframe(pconv.reset_index(),use_container_width=True,hide_index=True)
         st.markdown("<div class='section-title'>Growth Strategy Recommendations</div>",unsafe_allow_html=True)
         for rec,cls in [
